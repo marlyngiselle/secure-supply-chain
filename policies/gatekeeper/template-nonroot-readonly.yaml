@@ -1,0 +1,82 @@
+# Gatekeeper alternative for clusters that standardise on OPA instead of Kyverno.
+# Covers the runtime controls only. Signature verification stays with Kyverno
+# or the Sigstore policy-controller, since Gatekeeper cannot call Rekor itself.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snonrootreadonly
+  annotations:
+    description: >-
+      Requires containers to run as non-root with a read-only root filesystem
+      and without privilege escalation.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNonRootReadOnly
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            exemptImages:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snonrootreadonly
+
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+
+        exempt(c) {
+          img := input.parameters.exemptImages[_]
+          startswith(c.image, img)
+        }
+
+        pod_non_root {
+          input.review.object.spec.securityContext.runAsNonRoot == true
+        }
+
+        container_non_root(c) {
+          c.securityContext.runAsNonRoot == true
+        }
+
+        container_non_root(c) {
+          pod_non_root
+          not c.securityContext.runAsNonRoot == false
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not exempt(c)
+          not container_non_root(c)
+          msg := sprintf("container %v must run with runAsNonRoot=true", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not exempt(c)
+          c.securityContext.runAsUser == 0
+          msg := sprintf("container %v must not run as UID 0", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not exempt(c)
+          not c.securityContext.readOnlyRootFilesystem == true
+          msg := sprintf("container %v must set readOnlyRootFilesystem=true", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not exempt(c)
+          not c.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("container %v must set allowPrivilegeEscalation=false", [c.name])
+        }

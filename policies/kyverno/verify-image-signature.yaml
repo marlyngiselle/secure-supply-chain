@@ -1,0 +1,72 @@
+# Admit an image from ghcr.io/marlyngiselle only if all of the following hold:
+#   1. it carries a keyless Cosign signature made by this repository's release
+#      workflow, on a version tag, through GitHub's OIDC issuer;
+#   2. it carries a CycloneDX SBOM attestation signed by the same identity;
+#   3. it carries SLSA provenance signed by the slsa-github-generator builder,
+#      naming this repository as the source.
+# Kyverno also rewrites the tag to the verified digest, so the kubelet pulls
+# exactly the bytes that were checked.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+  annotations:
+    policies.kyverno.io/title: Verify signature, SBOM and provenance
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Images from ghcr.io/marlyngiselle must be signed keyless by the release
+      workflow of the secure-supply-chain repository and must carry a signed
+      CycloneDX SBOM and SLSA provenance.
+spec:
+  validationFailureAction: Enforce
+  webhookTimeoutSeconds: 30
+  background: false
+  rules:
+    - name: signed-by-release-workflow
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/marlyngiselle/*"
+          mutateDigest: true
+          verifyDigest: true
+          required: true
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: '^https://github\.com/marlyngiselle/secure-supply-chain/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+                    rekor:
+                      url: https://rekor.sigstore.dev
+          attestations:
+            - type: https://cyclonedx.org/bom
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: '^https://github\.com/marlyngiselle/secure-supply-chain/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+                        rekor:
+                          url: https://rekor.sigstore.dev
+              conditions:
+                - all:
+                    - key: "{{ length(components || `[]`) }}"
+                      operator: GreaterThan
+                      value: 0
+            - type: https://slsa.dev/provenance/v0.2
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: '^https://github\.com/slsa-framework/slsa-github-generator/\.github/workflows/generator_container_slsa3\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+                        rekor:
+                          url: https://rekor.sigstore.dev
+              conditions:
+                - all:
+                    - key: "{{ invocation.configSource.uri }}"
+                      operator: Equals
+                      value: "git+https://github.com/marlyngiselle/secure-supply-chain@refs/tags/*"
