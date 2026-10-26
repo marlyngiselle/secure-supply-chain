@@ -17,7 +17,7 @@ func newTestHandler() http.Handler {
 func do(t *testing.T, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	newTestHandler().ServeHTTP(rec, httptest.NewRequest(method, path, nil))
+	newTestHandler().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, path, nil))
 	return rec
 }
 
