@@ -12,7 +12,7 @@
 #   docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{json .Manifest.Digest}}'
 
 # Replace with golang:1.25-alpine@sha256:<digest>
-FROM golang:1.25-alpine AS build
+FROM golang:1.27-alpine AS build
 
 WORKDIR /src
 
