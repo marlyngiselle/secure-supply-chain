@@ -1,0 +1,26 @@
+# Build output
+/bin/
+/dist/
+app/server
+*.test
+*.out
+coverage.*
+
+# Supply chain artifacts produced locally
+*.sbom.json
+*.spdx.json
+*.cdx.json
+*.sarif
+*.intoto.jsonl
+cosign.key
+cosign.pub
+
+# Local environments
+.venv/
+.env
+.env.*
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,12 @@
+# Hadolint configuration. Every rule stays at its default severity,
+# and the build fails on anything at warning level or above.
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - cgr.dev
+  - gcr.io
+override:
+  error:
+    - DL3002 # last USER must not be root
+    - DL3007 # never use :latest
+    - DL3006 # always tag the image explicitly
