@@ -1,0 +1,30 @@
+# Default deny for the whole namespace, in both directions.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: secure-app
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# The only traffic allowed: the ingress controller reaching the app on 8080.
+# The service makes no outbound calls, so egress stays fully closed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: secure-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: secure-app
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
